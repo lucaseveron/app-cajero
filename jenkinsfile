@@ -1,35 +1,46 @@
 pipeline {
-    environment {
-        registry = "YourDockerhubAccount/YourRepository"
-        registryCredential = 'dockerhub_id'
-        dockerTag = 'v1.0' 
-    }
     agent any
+
+    environment {     
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub_id')     
+    } 
+
     stages {
-        stage('Cloning our Git') {
+        stage('Eliminado de contendores viejo') {
             steps {
-                git 'https://github.com/lucaseveron/app-cajero.git'
+                sh 'docker container prune -f'
             }
         }
-        stage('Building our image') {
+
+        stage('Descarga de la aplicacion desde Github') {
             steps {
-                script {
-                    dockerImage = docker.build(registry + ":$dockerTag .")
-                }
+                sh 'git clone https://github.com/lucaseveron/app-cajero.git'
             }
         }
-        stage('Deploy our image') {
+
+        stage('Creando la imagen') {
             steps {
-                script {
-                    docker.withRegistry('', registryCredential) {
-                        dockerImage.push()
-                    }
-                }
+                sh 'cd app-cajero && docker build -t lucaseveron/app-cajero:v3.0 .'
             }
         }
-        stage('Cleaning up') {
+
+        stage('Ejecutando el contenedor') {
             steps {
-                sh "docker rmi $registry:$dockerTag"
+                sh 'docker run -p 7080:7080 -d --name app-cajero lucaseveron/app-cajero:v3.0'
+            }
+        }
+
+        stage('Docker login') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'                 
+                echo 'Login Completed' 
+            }
+        }
+
+        stage('Docker push') {
+            steps {
+                sh 'docker push lucaseveron/app-cajero:v3.0'                 
+                echo 'Push Image Completed'    
             }
         }
     }
